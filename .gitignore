@@ -28,3 +28,13 @@ oryxBuildBinary
 
 # dont ignore gh action yml
 !.github/workflows/build_and_publish.yml
+
+# logs
+*.log
+
+# bin
+bin
+
+# Secret
+provider.json
+provider.local.json
