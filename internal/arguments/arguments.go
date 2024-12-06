@@ -31,7 +31,7 @@ func (Args) Version() string {
 
 // additional description
 func (Args) Epilogue() string {
-	return "For more information visit github.com/Tensai75/nzbrefresh\n"
+	return "For more information visit github.com/hnipps/nzbrefresh\n"
 }
 
 var Arguments = &Args{}

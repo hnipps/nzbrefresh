@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/Tensai75/nzbrefresh/internal/arguments"
+	"github.com/hnipps/nzbrefresh/internal/arguments"
 )
 
 type Config struct {

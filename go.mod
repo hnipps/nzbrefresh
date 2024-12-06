@@ -1,4 +1,4 @@
-module github.com/Tensai75/nzbrefresh
+module github.com/hnipps/nzbrefresh
 
 go 1.21
 

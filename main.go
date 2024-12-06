@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tensai75/nzbrefresh/internal/arguments"
-	"github.com/Tensai75/nzbrefresh/pkg/refresh"
+	"github.com/hnipps/nzbrefresh/internal/arguments"
+	"github.com/hnipps/nzbrefresh/pkg/refresh"
 )
 
 type (
