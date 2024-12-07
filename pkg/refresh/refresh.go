@@ -277,7 +277,6 @@ func Run(nzbpath string) (bool, error) {
 		go providerList[n].pool.Close()
 	}
 	runtime := fmt.Sprintf("Total runtime %v | %v ms/segment", time.Since(preparationStartTime), float32(time.Since(preparationStartTime).Milliseconds())/float32(nzbfile.Segments))
-	fmt.Println(runtime)
 	log.Print(runtime)
 	writeCsvFile(nzbpath)
 	return true, nil
@@ -587,8 +586,7 @@ func writeCsvFile(nzbpath string) {
 		if err != nil {
 			exit(fmt.Errorf("unable to open csv file: %v", err))
 		}
-		log.Println("writing csv file...")
-		fmt.Print("Writing csv file... ")
+		log.Print("Writing csv file... ")
 		csvWriter := csv.NewWriter(f)
 		firstLine := true
 		// make sorted provider name slice
