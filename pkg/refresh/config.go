@@ -9,13 +9,14 @@ import (
 
 type Config struct {
 	providers []Provider
+	mode      string // "cli" or "pkg"
 	arguments.Args
 }
 
 type Option func(*Config)
 
 func defaultConfig() *Config {
-	return &Config{}
+	return &Config{mode: "cli"}
 }
 
 func WithNZBFile(path string) Option {
@@ -41,6 +42,12 @@ func WithDebug(shouldDebug bool) Option {
 func WithCsv(writeCsv bool) Option {
 	return func(c *Config) {
 		c.Csv = writeCsv
+	}
+}
+
+func WithMode(mode string) Option {
+	return func(c *Config) {
+		c.mode = mode
 	}
 }
 

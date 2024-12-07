@@ -67,6 +67,7 @@ type (
 )
 
 var (
+	config       Config
 	nzbfile      *nzbparser.Nzb // the parsed NZB file structure
 	providerList []Provider     // the parsed provider list structure
 
@@ -108,21 +109,15 @@ var (
 	fileStatLock sync.Mutex
 )
 
-var config Config
-
 func Prepare(options ...Option) {
-	config := defaultConfig()
+	config = *defaultConfig()
 	for _, option := range options {
-		option(config)
+		option(&config)
 	}
+	log.Print(config)
 
 	log.Print("preparing...")
 	preparationStartTime = time.Now()
-
-	// load the NZB file
-	if nzbfile, err = loadNzbFile(config.NZBFile); err != nil {
-		exit(fmt.Errorf("unable to load NZB file '%s': %v'", config.NZBFile, err))
-	}
 
 	// load the provider list
 	if providerList, err = loadProviderList(config.Provider); err != nil {
@@ -212,7 +207,13 @@ func Prepare(options ...Option) {
 	log.Printf("preparation took %v", time.Since(preparationStartTime))
 }
 
-func Run() {
+func Run(nzbpath string) (bool, error) {
+
+	// load the NZB file
+	if nzbfile, err = loadNzbFile(nzbpath); err != nil {
+		log.Print("Error: ", fmt.Errorf("unable to load NZB file '%s': %v'", nzbpath, err))
+		return false, err
+	}
 
 	startString := fmt.Sprintf("starting segment check of %v segments", nzbfile.TotalSegments)
 	if config.CheckOnly {
@@ -222,13 +223,15 @@ func Run() {
 	log.Print(startString)
 	segmentCheckStartTime = time.Now()
 
-	// segment check progressbar
-	segmentBar = progressBars.NewBar("Checking segments", nzbfile.TotalSegments)
-	segmentBar.SetPreBar(cmpb.CalcSteps)
-	segmentBar.SetPostBar(cmpb.CalcTime)
+	if config.mode == "cli" {
+		// segment check progressbar
+		segmentBar = progressBars.NewBar("Checking segments", nzbfile.TotalSegments)
+		segmentBar.SetPreBar(cmpb.CalcSteps)
+		segmentBar.SetPostBar(cmpb.CalcTime)
 
-	// start progressbar
-	progressBars.Start()
+		// start progressbar
+		progressBars.Start()
+	}
 
 	// loop through all file tags within the NZB file
 	for _, file := range nzbfile.Files {
@@ -244,12 +247,19 @@ func Run() {
 		}
 	}
 	segmentChanWG.Wait()
-	segmentBar.SetMessage("done")
-	sendArticleWG.Wait()
-	if uploadBarStarted {
-		uploadBar.SetMessage("done")
+
+	if config.mode == "cli" {
+		segmentBar.SetMessage("done")
 	}
-	progressBars.Wait()
+
+	sendArticleWG.Wait()
+
+	if config.mode == "cli" {
+		if uploadBarStarted {
+			uploadBar.SetMessage("done")
+		}
+		progressBars.Wait()
+	}
 	log.Printf("segment check took %v | %v ms/segment", time.Since(segmentCheckStartTime), float32(time.Since(segmentCheckStartTime).Milliseconds())/float32(nzbfile.Segments))
 	for n := range providerList {
 		result := fmt.Sprintf("Results for '%s': checked: %v | available: %v | missing: %v | refreshed: %v | %v connections used",
@@ -269,7 +279,8 @@ func Run() {
 	runtime := fmt.Sprintf("Total runtime %v | %v ms/segment", time.Since(preparationStartTime), float32(time.Since(preparationStartTime).Milliseconds())/float32(nzbfile.Segments))
 	fmt.Println(runtime)
 	log.Print(runtime)
-	writeCsvFile()
+	writeCsvFile(nzbpath)
+	return true, nil
 }
 
 func loadNzbFile(path string) (*nzbparser.Nzb, error) {
@@ -331,7 +342,10 @@ func processSegment() {
 		func() {
 			defer func() {
 				segmentChanWG.Done()
-				segmentBar.Increment()
+
+				if config.mode == "cli" {
+					segmentBar.Increment()
+				}
 			}()
 			// positiv provider list (providers who have the article)
 			var availableOn []*Provider
@@ -380,20 +394,26 @@ func processSegment() {
 				// check if positiv list contains entries
 				// without at least on provider having the article we cannot fix the others
 				if len(availableOn) > 0 {
-					uploadBarMutex.Lock()
-					if uploadBarStarted {
-						uploadBar.IncrementTotal()
-					} else {
-						uploadBar = progressBars.NewBar("Uploading articles", 1)
-						uploadBar.SetPreBar(cmpb.CalcSteps)
-						uploadBar.SetPostBar(cmpb.CalcTime)
-						uploadBarStarted = true
+
+					if config.mode == "cli" {
+						uploadBarMutex.Lock()
+						if uploadBarStarted {
+							uploadBar.IncrementTotal()
+						} else {
+							uploadBar = progressBars.NewBar("Uploading articles", 1)
+							uploadBar.SetPreBar(cmpb.CalcSteps)
+							uploadBar.SetPostBar(cmpb.CalcTime)
+							uploadBarStarted = true
+						}
+						uploadBarMutex.Unlock()
 					}
-					uploadBarMutex.Unlock()
 					// load article
 					if article, err := loadArticle(availableOn, segment.Id); err != nil {
 						log.Print(err)
-						uploadBar.Increment()
+
+						if config.mode == "cli" {
+							uploadBar.Increment()
+						}
 					} else {
 						// reupload article
 						sendArticleWG.Add(1)
@@ -405,7 +425,10 @@ func processSegment() {
 									log.Print(err)
 								}
 							}
-							uploadBar.Increment()
+							if config.mode == "cli" {
+								uploadBar.Increment()
+							}
+
 							sendArticleWG.Done()
 						}()
 					}
@@ -557,9 +580,9 @@ func copyArticle(article *nntp.Article, body []byte) (*nntp.Article, error) {
 	return &newArticle, nil
 }
 
-func writeCsvFile() {
+func writeCsvFile(nzbpath string) {
 	if config.CheckOnly {
-		csvFileName := strings.TrimSuffix(filepath.Base(config.NZBFile), filepath.Ext(filepath.Base(config.NZBFile))) + ".csv"
+		csvFileName := strings.TrimSuffix(filepath.Base(nzbpath), filepath.Ext(filepath.Base(nzbpath))) + ".csv"
 		f, err := os.Create(csvFileName)
 		if err != nil {
 			exit(fmt.Errorf("unable to open csv file: %v", err))
