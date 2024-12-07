@@ -61,7 +61,7 @@ func init() {
 }
 
 func main() {
-	refresh.Run()
+	refresh.Run(args.NZBFile)
 }
 
 func exit(err error) {
