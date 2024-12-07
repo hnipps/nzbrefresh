@@ -114,7 +114,6 @@ func Prepare(options ...Option) {
 	for _, option := range options {
 		option(&config)
 	}
-	log.Print(config)
 
 	log.Print("preparing...")
 	preparationStartTime = time.Now()
